@@ -18,7 +18,12 @@ import json
 import os
 import shutil
 from django.conf import settings
+import pyotp
+import qrcode
+import io
+from django.http import HttpResponse
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+
 
 def get_avatar_url(user, request: HttpRequest):
  
@@ -31,28 +36,190 @@ def get_avatar_url(user, request: HttpRequest):
         else:  # Case 2: Selected avatar (pre-defined from database)
             return avatar_name
 
+# class LoginView(APIView):
+#     def post(self, request):
+#         username = request.data.get('username')
+#         password = request.data.get('password')
+
+#         user = authenticate(request, username=username, password=password)
+
+#         if user is not None:
+#             # Authentication successful so generate JWT token
+#             refresh = RefreshToken.for_user(user)
+#             avatar_name = get_avatar_url(user, request)
+
+#             login(request, user) # Automatically triggers set_online signal
+
+#             return Response({"message": "Login successful","username": user.username,
+#                 "display_name": user.userprofile.display_name,
+#                 "avatar": avatar_name,
+#                 "refresh": str(refresh),
+#                 "access": str(refresh.access_token), }, status=status.HTTP_200_OK)
+#         else:
+#             # Authentication failed
+#             return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+
 class LoginView(APIView):
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = request.data.get("username")
+        password = request.data.get("password")
 
         user = authenticate(request, username=username, password=password)
 
         if user is not None:
-            # Authentication successful so generate JWT token
+            user_profile = UserProfile.objects.get(user=user)
+
+            # If 2FA is enabled, request OTP verification
+            if user_profile.two_factor_secret:
+                return Response(
+                    {
+                        "message": "OTP required for 2FA users",
+                        "2fa_required": True,
+                        "username": user.username,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # No 2FA required – log in directly
             refresh = RefreshToken.for_user(user)
             avatar_name = get_avatar_url(user, request)
 
-            login(request, user) # Automatically triggers set_online signal
+            login(request, user)  # Set online status
 
-            return Response({"message": "Login successful","username": user.username,
-                "display_name": user.userprofile.display_name,
-                "avatar": avatar_name,
-                "refresh": str(refresh),
-                "access": str(refresh.access_token), }, status=status.HTTP_200_OK)
-        else:
-            # Authentication failed
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "message": "Login successful",
+                    "username": user.username,
+                    "display_name": user_profile.display_name,
+                    "avatar": avatar_name,
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {"error": "Invalid credentials"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+class Verify2FAView(APIView):
+    def post(self, request):
+        username = request.data.get("username")
+        otp_code = request.data.get("otp_code")
+
+        try:
+            user = User.objects.get(username=username)
+            user_profile = user.userprofile
+
+            # Ensure 2FA is enabled for this user
+            if not user_profile.two_factor_secret:
+                return Response(
+                    {"error": "2FA not enabled for this user"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verify OTP code
+            totp = pyotp.TOTP(user_profile.two_factor_secret)
+            if not totp.verify(otp_code):
+                return Response(
+                    {"error": "Invalid OTP code"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # OTP is valid – log the user in and return their details
+            refresh = RefreshToken.for_user(user)
+            avatar_name = get_avatar_url(user, request)
+
+            login(request, user)  # Set online status
+
+            return Response(
+                {
+                    "message": "2FA verified successfully",
+                    "username": user.username,
+                    "display_name": user_profile.display_name,
+                    "avatar": avatar_name,
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+class Generate2FAQRView(APIView):
+    permission_classes = [IsAuthenticated]  # Only allow logged-in users
+
+    def get(self, request):
+        user_profile = request.user.userprofile  # Get the user's profile
+
+        # Generate secret key if not already set
+        if not user_profile.two_factor_secret:
+            user_profile.generate_2fa_secret()
+
+        # Generate OTP URI
+        otp_uri = user_profile.get_otp_uri()
+
+        # Create QR Code
+        qr = qrcode.make(otp_uri)
+        img_io = io.BytesIO()
+        qr.save(img_io, format='PNG')
+        img_io.seek(0)
+
+        return HttpResponse(img_io, content_type="image/png")
+
+class OTPVerificationFor2FAView(APIView):
+    permission_classes = [IsAuthenticated]  # Only allow logged-in users
+    def post(self, request):
+        username = request.data.get("username")
+        otp_code = request.data.get("otp_code")
+
+        # Ensure both username and OTP are provided
+        if not username or not otp_code:
+            return Response(
+                {"error": "Username and OTP code are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(username=username)
+            user_profile = user.userprofile
+
+            # Check if the user has started 2FA setup (i.e., the secret key exists)
+            if not user_profile.two_factor_secret:
+                return Response(
+                    {"error": "2FA setup has not been started for this user"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Use the model method to verify OTP
+            if not user_profile.verify_otp(otp_code):
+                return Response(
+                    {"error": "Invalid OTP code"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # OTP is valid – proceed with enabling 2FA
+            # No need to set 'two_factor_enabled' field as you don't have it
+
+            return Response(
+                {
+                    "message": "2FA has been successfully enabled.",
+                    "username": user.username,
+                    "display_name": user_profile.display_name,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 class RegisterView(APIView):
     def post(self, request):
