@@ -1,12 +1,15 @@
 
 from django.urls import path
-from .views import LoginView, RegisterView, UpdateDisplayNameView, DeleteAccountView, UpdateAvatarView, UploadAvatarView, get_online_users, logout_user, add_friend
+from .views import LoginView, Generate2FAQRView, OTPVerificationFor2FAView, RegisterView, Verify2FAView, UpdateDisplayNameView, DeleteAccountView, UpdateAvatarView, UploadAvatarView, get_online_users, logout_user, add_friend
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
     path("authentication/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),  # Login
     path("authentication/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),  # Refresh token
     path('login/', LoginView.as_view(), name='login'),
+    path('verify2fa/', Verify2FAView.as_view(), name='verify2fa'),
+    path('generate2fa/', Generate2FAQRView.as_view(), name='generate2fa'),
+    path('verifyotp/', OTPVerificationFor2FAView.as_view(), name='verifyotp'),
     path('register/', RegisterView.as_view(), name='register'),
     path('changedisplayname/', UpdateDisplayNameView.as_view(), name='changedisplayname'),
     path('deleteaccount/', DeleteAccountView.as_view(), name='deleteaccount'),
