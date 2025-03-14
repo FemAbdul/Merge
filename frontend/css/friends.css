@@ -1,0 +1,79 @@
+.friends-popup {
+    position: fixed;
+    max-height: 80vh;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+/* Friends list container */
+#suggested-friends-list {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0;
+}
+
+/* Friend list item */
+.friend-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Friend name */
+.friend-name {
+    flex: 2;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Status indicator */
+.status {
+    flex: 1;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Add friend button */
+.add-friend-btn {
+    flex: 1;
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    width: 120px; /* Fixed width for consistency */
+}
+
+.add-friend-btn.added {
+    background-color: #cccccc;
+}
+
+/* Close button */
+#close-friends-popup-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 20px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Header styling */
+.popup-content h2 {
+    margin: 0;
+    color: #333;
+    text-align: center;
+}
