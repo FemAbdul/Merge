@@ -29,6 +29,7 @@ class UserProfile(models.Model):
     )
     last_seen = models.DateTimeField(null=True, blank=True)
     two_factor_secret = models.CharField(max_length=32, null=True, blank=True)  # 2FA secret key
+    two_factor_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username}'s Profile"

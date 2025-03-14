@@ -70,7 +70,7 @@ class LoginView(APIView):
             user_profile = UserProfile.objects.get(user=user)
 
             # If 2FA is enabled, request OTP verification
-            if user_profile.two_factor_secret:
+            if user_profile.two_factor_enabled:
                 return Response(
                     {
                         "message": "OTP required for 2FA users",
@@ -180,6 +180,7 @@ class OTPVerificationFor2FAView(APIView):
 
         # Ensure both username and OTP are provided
         if not username or not otp_code:
+
             return Response(
                 {"error": "Username and OTP code are required"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -198,16 +199,19 @@ class OTPVerificationFor2FAView(APIView):
 
             # Use the model method to verify OTP
             if not user_profile.verify_otp(otp_code):
+                user_profile.two_factor_secret = None 
+                user_profile.save()
                 return Response(
                     {"error": "Invalid OTP code"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
             # OTP is valid – proceed with enabling 2FA
-            # No need to set 'two_factor_enabled' field as you don't have it
-
+            user_profile.two_factor_enabled = True
+            user_profile.save()
             return Response(
                 {
+                    "success": True,
                     "message": "2FA has been successfully enabled.",
                     "username": user.username,
                     "display_name": user_profile.display_name,

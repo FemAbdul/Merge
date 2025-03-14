@@ -6,7 +6,7 @@ class UpdateOnlineStatusMiddleware:
 
     def __call__(self, request):
         if request.user.is_authenticated:
-            profile = request.user.profile
+            profile = request.user.userprofile
             profile.online_status = 'online'
             profile.last_seen = now()
             profile.save()
