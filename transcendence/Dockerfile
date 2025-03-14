@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+RUN apt-get update && apt-get install -y tzdata
+ENV TZ=Asia/Dubai
 # Copy the Django app source code to the container
 COPY . /app/
 

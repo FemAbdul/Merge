@@ -19,6 +19,8 @@ services:
 
   web:
     build: .
+    environment:
+      - TZ=Asia/Dubai
     depends_on:
       db:
         condition: service_started
